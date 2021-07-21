@@ -1,0 +1,676 @@
+diff --git a/frameworks/base/services/core/java/com/android/server/display/LogicalDisplay.java b/frameworks/base/services/core/java/com/android/server/display/LogicalDisplay.java
+index 4d69fdc..9bb5099 100644
+--- a/frameworks/base/services/core/java/com/android/server/display/LogicalDisplay.java
++++ b/frameworks/base/services/core/java/com/android/server/display/LogicalDisplay.java
+@@ -421,6 +421,12 @@ final class LogicalDisplay {
+         // Apply the physical rotation of the display device itself.
+         orientation = (orientation + displayDeviceInfo.rotation) % 4;
+ 
++        //test 1.8
++        if(displayInfo.logicalWidth == 2160)
++            orientation = 3;
++        else
++            orientation = 0;
++
+         // Set the frame.
+         // The frame specifies the rotated physical coordinates into which the viewport
+         // is mapped.  We need to take care to preserve the aspect ratio of the viewport.
+@@ -444,6 +450,8 @@ final class LogicalDisplay {
+         // We avoid a division (and possible floating point imprecision) here by
+         // multiplying the fractions by the product of their denominators before
+         // comparing them.
++
++        /*
+         int displayRectWidth, displayRectHeight;
+         if ((displayInfo.flags & Display.FLAG_SCALING_DISABLED) != 0 || mDisplayScalingDisabled) {
+             displayRectWidth = displayInfo.logicalWidth;
+@@ -458,6 +466,36 @@ final class LogicalDisplay {
+             displayRectWidth = displayInfo.logicalWidth * physHeight / displayInfo.logicalHeight;
+             displayRectHeight = physHeight;
+         }
++        */
++
++        //test: we keep the extended resolution and allow division revisit 1212
++        //we asume the setted resolution matched the physical displya for thge experiments
++        int displayRectWidth, displayRectHeight;
++        displayRectWidth = displayInfo.logicalWidth;
++        displayRectHeight = displayInfo.logicalHeight;
++
++        int displayRectTop = 0;
++        int displayRectLeft = 0;
++        mTempDisplayRect.set(displayRectLeft, displayRectTop,
++                displayRectLeft + displayRectWidth, displayRectTop + displayRectHeight);
++        
++        mTempDisplayRect.offset(maskingInsets.left, maskingInsets.top);
++        
++        // test if
++        if(orientation == 0){
++            mTempDisplayRect.left += mDisplayOffsetX;
++            mTempDisplayRect.right += mDisplayOffsetX;
++            mTempDisplayRect.top += mDisplayOffsetY;
++            mTempDisplayRect.bottom += mDisplayOffsetY;
++        }
++        else{
++            mTempDisplayRect.left -= 0;
++            mTempDisplayRect.right -= 0;
++            mTempDisplayRect.top += 0;
++            mTempDisplayRect.bottom += 0;
++        }
++
++        /*
+         int displayRectTop = (physHeight - displayRectHeight) / 2;
+         int displayRectLeft = (physWidth - displayRectWidth) / 2;
+         mTempDisplayRect.set(displayRectLeft, displayRectTop,
+@@ -483,6 +521,7 @@ final class LogicalDisplay {
+             mTempDisplayRect.bottom=physHeight;
+           }
+         }
++        */
+         device.setProjectionLocked(t, orientation, mTempLayerStackRect, mTempDisplayRect);
+     }
+ 
+diff --git a/frameworks/native/services/inputflinger/InputReader.cpp b/frameworks/native/services/inputflinger/InputReader.cpp
+index 113a91b..f47a069 100644
+--- a/frameworks/native/services/inputflinger/InputReader.cpp
++++ b/frameworks/native/services/inputflinger/InputReader.cpp
+@@ -67,6 +67,11 @@
+ #define INDENT4 "        "
+ #define INDENT5 "          "
+ 
++//test
++
++#define HAL_LIBRARY_PATH1 "/dev/semantic_input1"
++#define HAL_LIBRARY_PATH2 "/dev/semantic_input2"
++
+ using android::base::StringPrintf;
+ 
+ namespace android {
+@@ -3905,6 +3910,29 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
+             mSurfaceLeft = naturalPhysicalLeft * naturalLogicalWidth / naturalPhysicalWidth;
+             mSurfaceTop = naturalPhysicalTop * naturalLogicalHeight / naturalPhysicalHeight;
+ 
++            //test 430
++            /*
++            if(mSurfaceHeight == 2160 && strcmp(this->getEventHub()->getDeviceIdentifier(this->getDeviceId()).location.c_str(), "usb-xhci-hcd.0.auto-1/input0") == 0){
++                ALOGE("eventhub usb = xhci");
++                //mSurfaceTop = 1080;
++            }
++            else if(mSurfaceHeight == 2160 && strcmp(this->getEventHub()->getDeviceIdentifier(this->getDeviceId()).location.c_str(), "usb-fe3a0000.usb-1/input0") == 0){
++                ALOGE("eventhub usb = 1");
++
++            }*/
++
++            //test 12.5
++            /*
++            if(mViewport.displayId == 0){
++                mSurfaceTop = 1080;
++            }*/
++            //if(mSurfaceHeight == 2160){
++               // mSurfaceTop = 1080;
++            //}
++
++            ALOGE("eventhub displayid = %d", mViewport.displayId);
++            ALOGE("eventhub height = %d, left = %d, top = %d, width = %d", mSurfaceHeight, mSurfaceLeft, mSurfaceTop, mSurfaceWidth);
++
+             mSurfaceOrientation = mParameters.orientationAware ?
+                     mViewport.orientation : DISPLAY_ORIENTATION_0;
+         } else {
+@@ -5467,6 +5495,106 @@ void TouchInputMapper::cookPointerData() {
+             break;
+         }
+ 
++        //test 430
++        ALOGE("mSurfaceOrientation = %d", mSurfaceOrientation);
++        int shift = 1080;
++
++        if(mSurfaceOrientation == DISPLAY_ORIENTATION_0 && strcmp(this->getEventHub()->getDeviceIdentifier(this->getDeviceId()).location.c_str(), "usb-xhci-hcd.0.auto-1/input0") == 0){
++            //lower screen
++            y = y/2.0 + shift;
++            ALOGE("eventhub usb = xhci  2160");
++            //mSurfaceTop = 1080;
++            ALOGE("eventhub x = %f y = %f bottom = %f top = %f" , x, y, bottom, top);
++            ALOGE("eventhub xTransf = %f yTransf = %f xMin = %d yMin = %d xTransl = %f yTransl = %f" , 
++            xTransformed, yTransformed, mRawPointerAxes.x.minValue, mRawPointerAxes.y.minValue, mXTranslate, mYTranslate);
++
++            //test 1.3
++            int fd = open(HAL_LIBRARY_PATH1, O_RDWR|O_APPEND|O_CREAT, S_IRUSR | S_IRGRP | S_IROTH);
++            if (fd >= 0) {
++                int value = 1;
++                char buffer[20];
++                int bytes = sprintf(buffer, "%d\n", value);
++                int amt = write(fd, buffer, bytes);
++                ALOGE("semantic input write: %d %s ret = %d", value, buffer, amt);
++                close(fd);
++            }
++            else
++            {
++                ALOGE("semantic input open failed: %d", fd);
++            }
++        }
++        else if(mSurfaceOrientation == DISPLAY_ORIENTATION_0 && strcmp(this->getEventHub()->getDeviceIdentifier(this->getDeviceId()).location.c_str(), "usb-fe3a0000.usb-1/input0") == 0){
++            // the upper screen
++            y = y/2;
++            ALOGE("eventhub usb = 1  2160");
++            ALOGE("eventhub x = %f y = %f bottom = %f top = %f" , x, y, bottom, top);
++            ALOGE("eventhub xTransf = %f yTransf = %f xMin = %d yMin = %d xTransl = %f yTransl = %f" , 
++            xTransformed, yTransformed, mRawPointerAxes.x.minValue, mRawPointerAxes.y.minValue, mXTranslate, mYTranslate);
++
++            //test 1.3
++            int fd = open(HAL_LIBRARY_PATH2, O_RDWR|O_APPEND|O_CREAT, S_IRUSR | S_IRGRP | S_IROTH);
++            if (fd >= 0) {
++                int value = 1;
++                char buffer[20];
++                int bytes = sprintf(buffer, "%d\n", value);
++                int amt = write(fd, buffer, bytes);
++                ALOGE("semantic input write2: %d %s ret = %d", value, buffer, amt);
++                close(fd);
++            }
++            else
++            {
++                ALOGE("semantic input open2 failed: %d", fd);
++            }
++        }
++        //portrait
++        else if(mSurfaceOrientation == DISPLAY_ORIENTATION_270 && strcmp(this->getEventHub()->getDeviceIdentifier(this->getDeviceId()).location.c_str(), "usb-xhci-hcd.0.auto-1/input0") == 0){
++            x = x/2.0;
++            ALOGE("eventhub usb = 1.4 default");
++            ALOGE("eventhub x = %f y = %f bottom = %f top = %f" , x, y, bottom, top);
++            ALOGE("eventhub xTransf = %f yTransf = %f xMin = %d yMin = %d xTransl = %f yTransl = %f" , 
++            xTransformed, yTransformed, mRawPointerAxes.x.minValue, mRawPointerAxes.y.minValue, mXTranslate, mYTranslate);
++            
++            //test 1.3
++            int fd = open(HAL_LIBRARY_PATH1, O_RDWR|O_APPEND|O_CREAT, S_IRUSR | S_IRGRP | S_IROTH);
++            if (fd >= 0) {
++                int value = 1;
++                char buffer[20];
++                int bytes = sprintf(buffer, "%d\n", value);
++                int amt = write(fd, buffer, bytes);
++                ALOGE("semantic input write: %d %s ret = %d", value, buffer, amt);
++                close(fd);
++            }
++            else
++            {
++                ALOGE("semantic input open failed: %d", fd);
++            }
++
++        }
++        else if(mSurfaceOrientation == DISPLAY_ORIENTATION_270 && strcmp(this->getEventHub()->getDeviceIdentifier(this->getDeviceId()).location.c_str(), "usb-fe3a0000.usb-1/input0") == 0){
++            x = x/2.0 + shift;
++            ALOGE("eventhub usb = 1.2 default");
++            ALOGE("eventhub x = %f y = %f bottom = %f top = %f" , x, y, bottom, top);
++            ALOGE("eventhub xTransf = %f yTransf = %f xMin = %d yMin = %d xTransl = %f yTransl = %f" , 
++            xTransformed, yTransformed, mRawPointerAxes.x.minValue, mRawPointerAxes.y.minValue, mXTranslate, mYTranslate);
++            //test 1.3
++            int fd = open(HAL_LIBRARY_PATH2, O_RDWR|O_APPEND|O_CREAT, S_IRUSR | S_IRGRP | S_IROTH);
++            if (fd >= 0) {
++                int value = 1;
++                char buffer[20];
++                int bytes = sprintf(buffer, "%d\n", value);
++                int amt = write(fd, buffer, bytes);
++                ALOGE("semantic input write2: %d %s ret = %d", value, buffer, amt);
++                close(fd);
++            }
++            else
++            {
++                ALOGE("semantic input open2 failed: %d", fd);
++            }
++
++        }
++
++        
++
+         // Write output coords.
+         PointerCoords& out = mCurrentCookedState.cookedPointerData.pointerCoords[i];
+         out.clear();
+diff --git a/frameworks/native/services/surfaceflinger/DisplayDevice.cpp b/frameworks/native/services/surfaceflinger/DisplayDevice.cpp
+index 4a13bfb..65b1cfb 100644
+--- a/frameworks/native/services/surfaceflinger/DisplayDevice.cpp
++++ b/frameworks/native/services/surfaceflinger/DisplayDevice.cpp
+@@ -65,12 +65,31 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
+         mOrientation(),
+         mActiveConfig(0),
+         mIsPrimary(args.isPrimary) {
++        
++    //test 4.2 
++    ALOGE("Native window [w:%d h:%d]",  ANativeWindow_getWidth(
++                                                                args.nativeWindow.get()) ,
++                                        ANativeWindow_getHeight(
++                                                                args.nativeWindow.get()));
++
++    //test set screen to 2160x2160
++    mCompositionDisplay->createRenderSurface(
++            compositionengine::RenderSurfaceCreationArgs{2160,
++                                                         2160,
++                                                         args.nativeWindow, args.displaySurface});
++
++    ALOGE("Native window [2160 2160]");
++
++    mCompositionDisplay->setBounds(ui::Size(2160, 2160));
++
++
++    /*
+     mCompositionDisplay->createRenderSurface(
+             compositionengine::RenderSurfaceCreationArgs{ANativeWindow_getWidth(
+                                                                  args.nativeWindow.get()),
+                                                          ANativeWindow_getHeight(
+                                                                  args.nativeWindow.get()),
+-                                                         args.nativeWindow, args.displaySurface});
++                                                         args.nativeWindow, args.displaySurface});*/
+ 
+     mCompositionDisplay->createDisplayColorProfile(
+             compositionengine::DisplayColorProfileCreationArgs{args.hasWideColorGamut,
+@@ -206,6 +225,8 @@ void DisplayDevice::setProjection(int orientation,
+ 
+     mOrientation = orientation;
+ 
++    //test 4.2 get display state
++
+     const Rect& displayBounds = getCompositionDisplay()->getState().bounds;
+     const int w = displayBounds.width();
+     const int h = displayBounds.height();
+diff --git a/frameworks/native/services/surfaceflinger/DisplayHardware/FramebufferSurface.cpp b/frameworks/native/services/surfaceflinger/DisplayHardware/FramebufferSurface.cpp
+index 226638a..78d8ca8 100644
+--- a/frameworks/native/services/surfaceflinger/DisplayHardware/FramebufferSurface.cpp
++++ b/frameworks/native/services/surfaceflinger/DisplayHardware/FramebufferSurface.cpp
+@@ -76,8 +76,13 @@ FramebufferSurface::FramebufferSurface(HWComposer& hwc, DisplayId displayId,
+     mConsumer->setConsumerUsageBits(flags);
+ 
+     const auto& activeConfig = mHwc.getActiveConfig(displayId);
+-    mConsumer->setDefaultBufferSize(activeConfig->getWidth(),
+-            activeConfig->getHeight());
++    //mConsumer->setDefaultBufferSize(activeConfig->getWidth(),
++    //        activeConfig->getHeight());
++    //test
++    ALOGE("Creating for display %d %d", activeConfig->getWidth(), activeConfig->getHeight());
++    mConsumer->setDefaultBufferSize(2160,
++            2160);
++
+     mConsumer->setMaxAcquiredBufferCount(
+             SurfaceFlinger::maxFrameBufferAcquiredBuffers - 1);
+ }
+diff --git a/frameworks/native/services/surfaceflinger/DisplayHardware/HWC2.cpp b/frameworks/native/services/surfaceflinger/DisplayHardware/HWC2.cpp
+index c463c4e..08b2a75 100644
+--- a/frameworks/native/services/surfaceflinger/DisplayHardware/HWC2.cpp
++++ b/frameworks/native/services/surfaceflinger/DisplayHardware/HWC2.cpp
+@@ -134,6 +134,9 @@ Error Device::createVirtualDisplay(uint32_t width, uint32_t height,
+ {
+     ALOGI("Creating virtual display");
+ 
++    //test 4.27
++    ALOGI("Creating virtual display height: %d", height);
++
+     hwc2_display_t displayId = 0;
+     auto intError = mComposer->createVirtualDisplay(width, height,
+             format, &displayId);
+@@ -753,9 +756,10 @@ void Display::loadConfig(hwc2_config_t configId)
+ {
+     ALOGV("[%" PRIu64 "] loadConfig(%u)", mId, configId);
+ 
++    //test 4.27
+     auto config = Config::Builder(*this, configId)
+             .setWidth(getAttribute(configId, Attribute::Width))
+-            .setHeight(getAttribute(configId, Attribute::Height))
++            .setHeight(/*getAttribute(configId, Attribute::Height)*/2160)
+             .setVsyncPeriod(getAttribute(configId, Attribute::VsyncPeriod))
+             .setDpiX(getAttribute(configId, Attribute::DpiX))
+             .setDpiY(getAttribute(configId, Attribute::DpiY))
+diff --git a/frameworks/native/services/surfaceflinger/DisplayHardware/HWComposer.cpp b/frameworks/native/services/surfaceflinger/DisplayHardware/HWComposer.cpp
+index 1099041..a021b7d 100644
+--- a/frameworks/native/services/surfaceflinger/DisplayHardware/HWComposer.cpp
++++ b/frameworks/native/services/surfaceflinger/DisplayHardware/HWComposer.cpp
+@@ -210,6 +210,7 @@ bool HWComposer::onVsync(hwc2_display_t hwcDisplayId, int64_t timestamp) {
+ 
+ std::optional<DisplayId> HWComposer::allocateVirtualDisplay(uint32_t width, uint32_t height,
+                                                             ui::PixelFormat* format) {
++
+     if (mRemainingHwcVirtualDisplays == 0) {
+         ALOGE("%s: No remaining virtual displays", __FUNCTION__);
+         return {};
+diff --git a/frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp b/frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp
+index 863fb59..ef6beda 100755
+--- a/frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp
++++ b/frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp
+@@ -796,8 +796,10 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
+         return BAD_VALUE;
+     }
+ 
++
+     Mutex::Autolock lock(mStateLock);
+ 
++
+     const auto displayId = getPhysicalDisplayIdLocked(displayToken);
+     if (!displayId) {
+         return NAME_NOT_FOUND;
+@@ -822,6 +824,10 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
+ 
+     configs->clear();
+ 
++    //test 4
++    int orientation_external = 0;
++    float density_external = 0;
++
+     for (const auto& hwConfig : getHwComposer().getConfigs(*displayId)) {
+         DisplayInfo info = DisplayInfo();
+ 
+@@ -834,6 +840,8 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
+         info.viewportW = info.w;
+         info.viewportH = info.h;
+ 
++        //test density
++
+         if (displayId == getInternalDisplayIdLocked()) {
+             // The density of the device is provided by a build property
+             float density = Density::getBuildDensity() / 160.0f;
+@@ -850,10 +858,17 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
+             }
+             info.density = density;
+ 
++            //test get density
++            density_external = density;
++
+             // TODO: this needs to go away (currently needed only by webkit)
+             const auto display = getDefaultDisplayDeviceLocked();
+             info.orientation = display ? display->getOrientation() : 0;
+ 
++            //test get orientation
++            orientation_external = info.orientation;
++
++
+             // This is for screenrecord
+             const Rect viewport = display->getViewport();
+             if (viewport.isValid()) {
+@@ -862,9 +877,12 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
+             }
+         } else {
+             // TODO: where should this value come from?
+-            static const int TV_DENSITY = 213;
+-            info.density = TV_DENSITY / 160.0f;
+-            info.orientation = 0;
++
++            //test 4.2
++            ALOGE("SurfaceFlinger got a TV_density\n");
++            
++            info.density = density_external;
++            info.orientation = orientation_external;
+         }
+ 
+         info.xdpi = xdpi;
+@@ -2825,6 +2843,9 @@ void SurfaceFlinger::processDisplayChangesLocked() {
+                             ALOGE_IF(status != NO_ERROR, "Unable to query format (%d)", status);
+                             auto format = static_cast<ui::PixelFormat>(intFormat);
+ 
++                            //test 4.27
++                            ALOGE("HWcomposer Width: %d Height %d", width, height);
++
+                             displayId =
+                                     getHwComposer().allocateVirtualDisplay(width, height, &format);
+                         }
+diff --git a/hardware/interfaces/graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp b/hardware/interfaces/graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp
+index a479f15..293f95e 100755
+--- a/hardware/interfaces/graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp
++++ b/hardware/interfaces/graphics/composer/2.1/utils/hwc2on1adapter/HWC2On1Adapter.cpp
+@@ -1879,6 +1879,12 @@ void HWC2On1Adapter::Display::prepareFramebufferTarget() {
+     int32_t width = mActiveConfig->getAttribute(Attribute::Width);
+     int32_t height = mActiveConfig->getAttribute(Attribute::Height);
+ 
++    //test 4.27
++    ALOGE("HWC2on1 height:%d", height);
++    height = 2160;
++    ALOGE("HWC2on1 height:%d", height);
++
++
+     auto& hwc1Target = mHwc1RequestedContents->hwLayers[mLayers.size()];
+     hwc1Target.compositionType = HWC_FRAMEBUFFER_TARGET;
+     hwc1Target.releaseFenceFd = -1;
+diff --git a/hardware/rockchip/hwcomposer/drmdisplaycompositor.cpp b/hardware/rockchip/hwcomposer/drmdisplaycompositor.cpp
+index 4f9fce2..319f02f 100755
+--- a/hardware/rockchip/hwcomposer/drmdisplaycompositor.cpp
++++ b/hardware/rockchip/hwcomposer/drmdisplaycompositor.cpp
+@@ -68,6 +68,10 @@
+ #define DRM_QUEUE_USLEEP 10
+ #define DRM_DISPLAY_COMPOSITOR_MAX_QUEUE_DEPTH 1
+ 
++//test
++#define HAL_LIBRARY_PATH1 "/dev/semantic_update1"
++#define HAL_LIBRARY_PATH2 "/dev/semantic_update2"
++
+ namespace android {
+ 
+ void SquashState::Init(DrmHwcLayer *layers, size_t num_layers) {
+@@ -1202,6 +1206,41 @@ int DrmDisplayCompositor::CommitFrame(DrmDisplayComposition *display_comp,
+     }
+ #endif
+ 
++  //test semantics optimization
++
++  if(display_ == HWC_DISPLAY_PRIMARY ){
++    int fd = open(HAL_LIBRARY_PATH1, O_RDWR|O_APPEND|O_CREAT, S_IRUSR | S_IRGRP | S_IROTH);
++
++    if (fd >= 0) {
++        int value = 1;
++        char buffer[20];
++        int bytes = sprintf(buffer, "%d\n", value);
++        int amt = write(fd, buffer, bytes);
++        ALOGE("semantic update write1: %d %s ret = %d", value, buffer, amt);
++        close(fd);
++    }
++    else
++    {
++        ALOGE("semantic update write open failed: %d", fd);
++    }
++  }
++  else if(display_ == HWC_DISPLAY_EXTERNAL ){
++    int fd = open(HAL_LIBRARY_PATH2, O_RDWR|O_APPEND|O_CREAT, S_IRUSR | S_IRGRP | S_IROTH);
++
++    if (fd >= 0) {
++        int value = 1;
++        char buffer[20];
++        int bytes = sprintf(buffer, "%d\n", value);
++        int amt = write(fd, buffer, bytes);
++        ALOGE("semantic update write2: %d %s ret = %d", value, buffer, amt);
++        close(fd);
++    }
++    else
++    {
++        ALOGE("semantic update write open failed2: %d", fd);
++    }
++  }
++
+   for (DrmCompositionPlane &comp_plane : comp_planes) {
+     DrmPlane *plane = comp_plane.plane();
+     DrmCrtc *crtc = comp_plane.crtc();
+@@ -1383,12 +1422,17 @@ int DrmDisplayCompositor::CommitFrame(DrmDisplayComposition *display_comp,
+       break;
+     }
+ 
++        //test 4.2
++
+     int dst_l,dst_t,dst_w,dst_h;
+     int src_l,src_t,src_w,src_h;
+     float hfactor;
+     int scale_factor;
+     float src_bpp;
+ 
++    //test 4.2 how much did the scr cutter shift
++    int lower_shift = 0;
++
+     src_l = (int)source_crop.left;
+     src_t = (int)source_crop.top;
+     src_w = (int)(source_crop.right - source_crop.left);
+@@ -1403,11 +1447,105 @@ int DrmDisplayCompositor::CommitFrame(DrmDisplayComposition *display_comp,
+ #endif
+         src_h = (int)(source_crop.bottom - source_crop.top);
+ 
++    //12.6
++    //ALOGE("strech: display_=%d, bClone=%d", display_, layers[source_layers.front()].bClone_);
++
++    ALOGE("strech: display_=%d source Before modify: src_l=%d, src_t=%d, src_w=%d, src_h=%d", display_, src_l, src_t, src_w, src_h);
++
++
+     dst_l = display_frame.left;
+     dst_t = display_frame.top;
+     dst_w = display_frame.right - display_frame.left;
+     dst_h = display_frame.bottom - display_frame.top;
+ 
++    ALOGE("strech: display_=%d dst Before modify: dst_l=%d, dst_t=%d, dst_w=%d, dst_h=%d", display_, dst_l, dst_t, dst_w, dst_h);
++
++
++    //time stamp
++    /*
++    struct timeval tv;
++    gettimeofday(&tv, NULL);
++    
++    ALOGE("strech second: %ld\n", tv.tv_sec); 
++    ALOGE("strech millisecond: %ld\n", tv.tv_sec * 1000 + tv.tv_usec / 1000);
++    ALOGE("strech microsecond: %ld\n", tv.tv_sec * 1000000 + tv.tv_usec);*/
++
++    //PRIMARY for HDMI, EXTERNAL for DP
++    if(display_ == HWC_DISPLAY_PRIMARY ){
++
++      if (dst_t >= 1080){
++        //continue;
++        src_h = 0;
++        dst_h = 0;
++        ALOGE("strech: all the contents are in the lower half, do nothing"); 
++      }
++      //draw the upper part of the frame of the frame goes across both of the displays
++      else if((1080 - dst_t) < dst_h){
++        //modified 430 added scale
++        float scale = float(1080 - dst_t)/dst_h;
++        
++        src_h = int(scale * src_h);
++        ALOGE("strech: src_h = %d scale = %f", src_h, scale);
++        dst_h = 1080 - dst_t;
++      }
++    }
++    else if(display_ == HWC_DISPLAY_EXTERNAL){
++      //for rotation strech 1.8
++      if(dst_w == 2160)
++        dst_w = 1920;
++      if(dst_h == 1920)
++        dst_h = 2160;
++      if(dst_l < 0)
++        dst_l = 0;
++      
++      // if all buffer of the layer is in upper part
++      if ((dst_t + dst_h) < 1080){
++        //continue;
++        ALOGE("strech: do nothing so high"); 
++        //top_bar_flag = 1;
++        src_h = 0;
++        dst_h = 0;
++      }
++      // start in upper but overlap to lower
++      else if(dst_t < 1080){
++
++        // modified 430 added multiplication to keep the scale
++        int orig_dst_h = dst_h;
++        dst_h = dst_t + dst_h - 1080;
++
++        int orig_src_h = src_h;
++
++        float scale = float(dst_h)/orig_dst_h;
++
++        src_h = int(scale*src_h);
++
++        ALOGE("strech: src_h = %d scale = %f", src_h, scale);
++
++        lower_shift = orig_src_h - src_h;
++        src_t += lower_shift;
++        dst_t = 0;
++        ALOGE("strech: lower half scale");
++      }
++      //all in the lower part
++      else{
++        dst_t -= 1080;
++      }
++    }
++
++
++    //test log print after modified
++    ALOGE("strech: display_=%d src After modify: src_l=%d, src_t=%d, src_w=%d, src_h=%d", display_, src_l, src_t, src_w, src_h);
++    ALOGE("strech: display_=%d dst After modify: dst_l=%d, dst_t=%d, dst_w=%d, dst_h=%d", display_, dst_l, dst_t, dst_w, dst_h);
++
++    /* original
++    dst_l = display_frame.left;
++    dst_t = display_frame.top;
++    dst_w = display_frame.right - display_frame.left;
++    dst_h = display_frame.bottom - display_frame.top; 
++    */
++
++
++
+ #if RK_VR
+     dst_l = dst_l * w_scale;
+     dst_t = dst_t * h_scale;
+diff --git a/hardware/rockchip/hwcomposer/hwcomposer.cpp b/hardware/rockchip/hwcomposer/hwcomposer.cpp
+index 0c4ac43..3813911 100755
+--- a/hardware/rockchip/hwcomposer/hwcomposer.cpp
++++ b/hardware/rockchip/hwcomposer/hwcomposer.cpp
+@@ -373,16 +373,24 @@ class DrmHotplugHandler : public DrmEventHandler {
+         hd->framebuffer_width = width;
+         hd->framebuffer_height = height;
+         hd->vrefresh = vrefresh ? vrefresh : 60;
++        //test 4.27
++        ALOGE("Turned to 1080: %d 387", height);
+       } else if (mode.h_display() && mode.v_display() && mode.v_refresh()) {
+         hd->framebuffer_width = mode.h_display();
+         hd->framebuffer_height = mode.v_display();
+         hd->vrefresh = mode.v_refresh();
+-        /*
++
++        //test 4.27
++        ALOGE("Turned to 1080: %d 384", height);
++        /*s
+          * Limit to 1080p if large than 2160p
+          */
++        //test 4.27
+         if (hd->framebuffer_height >= 2160 && hd->framebuffer_width >= hd->framebuffer_height) {
+           hd->framebuffer_width = hd->framebuffer_width * (1080.0 / hd->framebuffer_height);
+           hd->framebuffer_height = 1080;
++          //test 4.27
++          ALOGE("Turned to 1080 387");
+         }
+       } else {
+         hd->framebuffer_width = 1920;
+@@ -3940,6 +3948,8 @@ static int hwc_get_display_configs(struct hwc_composer_device_1 *dev,
+     if (hd->framebuffer_height >= 2160 && hd->framebuffer_width >= hd->framebuffer_height) {
+       hd->framebuffer_width = hd->framebuffer_width * (1080.0 / hd->framebuffer_height);
+       hd->framebuffer_height = 1080;
++      //test 4.27
++          ALOGE("Turned to 1080 3947");
+     }
+   } else {
+     hd->framebuffer_width = 1920;
+diff --git a/kernel/arch/arm64/boot/dts/rockchip/rk3399-roc-pc-base.dtsi b/kernel/arch/arm64/boot/dts/rockchip/rk3399-roc-pc-base.dtsi
+index cffaad1..b1c553c 100644
+--- a/kernel/arch/arm64/boot/dts/rockchip/rk3399-roc-pc-base.dtsi
++++ b/kernel/arch/arm64/boot/dts/rockchip/rk3399-roc-pc-base.dtsi
+@@ -229,7 +229,7 @@
+     };
+ };
+ &uart4 {
+-	status = "disabled";
++	status = "disable";
+ 
+ };
+ /* END ROC-RK3399-PC porting */
+diff --git a/kernel/arch/arm64/boot/dts/rockchip/rk3399-roc-pc-plus.dtsi b/kernel/arch/arm64/boot/dts/rockchip/rk3399-roc-pc-plus.dtsi
+index 1085650..40654b4 100644
+--- a/kernel/arch/arm64/boot/dts/rockchip/rk3399-roc-pc-plus.dtsi
++++ b/kernel/arch/arm64/boot/dts/rockchip/rk3399-roc-pc-plus.dtsi
+@@ -255,12 +255,12 @@
+ 	status = "okay";
+ };
+ &uart4{
+-	status = "disabled";
++	status = "disable";
+ };
+ &i2c1{
+ 	status = "okay";
+ };
+ &spidev0{
+-    status = "okay";
++    status = "okey";
+ };
+ 
